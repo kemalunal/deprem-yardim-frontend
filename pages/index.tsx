@@ -3,10 +3,7 @@ import RenderIf from "@/components/UI/Common/RenderIf";
 import LoadingSpinner from "@/components/UI/Common/LoadingSpinner";
 import Drawer from "@/components/UI/Drawer/Drawer";
 import FooterBanner from "@/components/UI/FooterBanner/FooterBanner";
-import {
-  CoordinatesURLParametersWithEventType,
-  MarkerData,
-} from "@/mocks/types";
+import { CoordinatesURLParametersWithEventType } from "@/mocks/types";
 import { dataFetcher } from "@/services/dataFetcher";
 import { useMapActions, useCoordinates } from "@/stores/mapStore";
 import styles from "@/styles/Home.module.css";
@@ -14,7 +11,6 @@ import { BASE_URL } from "@/utils/constants";
 import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
 import dynamic from "next/dynamic";
-import useSWR from "swr";
 import Maintenance from "@/components/UI/Maintenance/Maintenance";
 // import { Partytown } from "@builder.io/partytown/react";
 import Footer from "@/components/UI/Footer/Footer";
@@ -30,7 +26,8 @@ type Props = {
 };
 
 export default function Home({ deviceType }: Props) {
-  const [slowLoading, setSlowLoading] = useState(false);
+  const [isLoading, setIsloading] = useState(false);
+  const [error, setError] = useState(false);
 
   const [url, setURL] = useState<string | null>(null);
   const coordinatesAndEventType:
@@ -46,7 +43,6 @@ export default function Home({ deviceType }: Props) {
 
   function handleButtonClick() {
     setURL(BASE_URL + "?" + urlParams);
-    mutate();
   }
 
   useEffect(() => {
@@ -59,15 +55,28 @@ export default function Home({ deviceType }: Props) {
       return;
 
     setURL(BASE_URL + "?" + urlParams);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coordinatesAndEventType]);
 
-  const { error, isLoading, mutate, isValidating } = useSWR<
-    MarkerData[] | undefined
-  >(url, dataFetcher, {
-    onLoadingSlow: () => setSlowLoading(true),
-    revalidateOnFocus: false,
-  });
+  const fetchData = (url: string) => {
+    if (!url) return;
+
+    setIsloading(true);
+    dataFetcher(url || "")
+      .then(() => {
+        setIsloading(false);
+        setError(false);
+      })
+      .catch(() => {
+        setError(true);
+        setIsloading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchData(url || "");
+  }, [url]);
 
   const { setDevice } = useMapActions();
   setDevice(deviceType);
@@ -83,10 +92,9 @@ export default function Home({ deviceType }: Props) {
           <RenderIf condition={!error} fallback={<Maintenance />}>
             <LeafletMap />
           </RenderIf>
-          {(isLoading || isValidating) && (
-            <LoadingSpinner slowLoading={slowLoading} />
-          )}
+          {isLoading && <LoadingSpinner slowLoading={false} />}
           <Button
+            disabled={isLoading}
             color="secondary"
             variant="contained"
             sx={{
